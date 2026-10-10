@@ -43,3 +43,26 @@ model AdminInviteCode {
 
     acceptedByUserRole UserRole?
 }
+
+// outbox handles pending events bound for the event queue
+enum OutboxStatus {
+    PENDING
+    FAILED
+    COMPLETED
+}
+
+model Outbox {
+    id Int @id @default(autoincrement())
+    type String // e.g. userRegistered
+    topic String // e.g. "user.registered"
+    payload Json // serialised payload
+    status OutboxStatus @default(PENDING)
+    retryCount Int @default(0)
+    errorMessage String?
+    nextRetryAt DateTime?
+    createdAt DateTime @default(now())
+
+    @@index([status, createdAt]) // for background poller performance
+    @@map("outbox")
+}
+

@@ -19,6 +19,7 @@ services:
     depends_on:
       - user_${PROFILE}
       - supplier_${PROFILE}
+      - rabbitmq
 
   edge_dev:
     image: nginx:1.31-alpine
@@ -47,6 +48,21 @@ services:
       - public_net
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+
+  # event queue
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672" # amqp
+      - "127.0.0.1:15672:15672" # management ui
+    networks: [private_net]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbitmq_management path_prefix "/rabbitmq"'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   # user service
   user_db:
@@ -83,9 +99,10 @@ services:
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
     # command: deno task dev
     # workaround for docker in wsl
-    command: deno run -A https://deno.land/x/denon/denon.ts dev
+    command: sh -c "deno task db:update_dev && deno run -A https://deno.land/x/denon/denon.ts dev"
   user_prod:
     build:
       context: ./user-service
@@ -152,6 +169,21 @@ services:
       DATABASE_URL: ${SUPPLIER_DB_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
 
+  # order service
+  order-db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: order_db
+    ports:
+      - "5434:5432" # Using 5434 locally so it doesn't clash with your User/Supplier DBs
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+
 volumes:
   user_pgdata:
   supplier_pgdata:
+  order-db-data:
+  rabbitmq_data:

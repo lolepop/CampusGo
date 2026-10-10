@@ -1,12 +1,16 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { Application, Router } from "@oak/oak";
 import { createAuthRouter, createPrivateAuthRouter } from "./routes/auth.ts";
-import { connectDatabase } from "./prisma/db.ts";
+import { connectDatabase, db } from "./prisma/db.ts";
 import log from "./log.ts";
 import { seedEssential } from "./prisma/seed.ts";
 import createUserRouter from "./routes/user.ts";
 import createRoleRouter from "./routes/role.ts";
 import { generateInviteCodeCli } from "./tasks/cli.ts";
+import { buildDefaultProvider } from "./queue/provider.ts";
+import { repoFactory } from "./prisma/factory.ts";
+import { OutboxWorker } from "./queue/outboxWorker.ts";
+import { makeRpcServer } from "./queue/rpc/server.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -14,9 +18,15 @@ const flags = parseArgs(Deno.args, {
 });
 
 // ensure database is ready so that first request is not slow
-// TODO: figure out how to automate setup and database migration in the scripts
 await connectDatabase();
 await seedEssential();
+
+const rabbitMqProvider = await buildDefaultProvider()
+const outboxWorker = new OutboxWorker(db, repoFactory, rabbitMqProvider);
+const rpcWorker = makeRpcServer(db, repoFactory, rabbitMqProvider);
+
+outboxWorker.start();
+rpcWorker.start();
 
 const createPublicRouter = () => {
     const router = new Router({ prefix: "/public" });

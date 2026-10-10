@@ -7,6 +7,7 @@
     "contract:emit": "deno run -A npm:prisma@8.0.0-rc.15 contract emit",
     "db:init": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db init",
     "db:update": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db update",
+    "db:update_dev": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db update --no-interactive --confirm users",
     "db:verify": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db verify",
     "dev": "deno run -A --env-file=.env --watch src/index.ts",
     "migrate": "deno run -A --env-file=.env npm:prisma@8.0.0-rc.15 db migrate",
@@ -18,6 +19,7 @@
   },
   "dependencies": {
     "@prisma/orm-postgres": "8.0.0-rc.11",
+    "amqplib": "^2.2.0",
     "argon2": "^0.45.1",
     "dotenv": "^17.4.2",
     "jose": "^6.2.12",

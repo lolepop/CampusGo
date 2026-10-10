@@ -1,13 +1,14 @@
 import { Router, type RouterContext } from "@oak/oak";
-import UserRepo from "../prisma/users.ts";
-import RoleRepo from "../prisma/roles.ts";
 import { UserController, userUpdateBasicSchema, userUpdatePasswordSchema, userUpdateRoleSchema } from "../controller/user.ts"
 import { authenticationMiddleware } from "../middleware/auth.ts";
 import { validateBody } from "../middleware/schema.ts";
 import { Role } from "../prisma/common.ts";
 import { defaultHasher } from "../util/hash.ts";
+import { repoFactory } from "../prisma/factory.ts";
+import { db } from "../prisma/db.ts";
 
-const userController = new UserController(UserRepo, RoleRepo, defaultHasher);
+const { user, role } = repoFactory.buildRepos(db);
+const userController = new UserController(user, role, defaultHasher);
 const createUserRouter = () => {
     const router = new Router({ prefix: "/user" });
 

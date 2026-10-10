@@ -1,15 +1,14 @@
 import { Router } from "@oak/oak";
 import { validateBody } from "../middleware/schema.ts";
-import UserRepo from "../prisma/users.ts";
-import RoleRepo from "../prisma/roles.ts";
-import InviteRepo from "../prisma/invite.ts";
 import { acceptInviteCodeSchema, AuthController, loginSchema, refreshTokenSchema, registrationSchema } from "../controller/auth.ts";
 import { defaultHasher } from "../util/hash.ts";
 import { defaultJwtService } from "../util/jwt.ts";
 import { defaultInviteCodeGenerator } from "../util/invite.ts";
 import { authenticationMiddleware } from "../middleware/auth.ts";
+import { repoFactory } from "../prisma/factory.ts";
+import { db } from "../prisma/db.ts";
 
-const authController = new AuthController(UserRepo, RoleRepo, InviteRepo, defaultHasher, defaultJwtService, defaultInviteCodeGenerator);
+const authController = new AuthController(db, repoFactory, defaultHasher, defaultJwtService, defaultInviteCodeGenerator);
 export const createAuthRouter = () => {
     const router = new Router({ prefix: "/auth" });
 

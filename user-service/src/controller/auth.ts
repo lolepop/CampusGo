@@ -12,6 +12,9 @@ import type { IInviteRepository } from "../prisma/invite.ts";
 import type { IInviteCodeGenerator } from "../util/invite.ts";
 import { Role } from "../prisma/common.ts";
 import type { JWTPayload } from "jose";
+import { isTransaction, type DbTxUnion } from "../prisma/db.ts";
+import type { IRepoFactory } from "../prisma/factory.ts";
+import type { IOutboxRepository } from "../prisma/outbox.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
@@ -34,19 +37,26 @@ export const acceptInviteCodeSchema = z.object({
 
 const GENERIC_LOGIN_ERROR = "supplied email/password is incorrect";
 
-// TODO: unit testing
 export class AuthController {
+    db: DbTxUnion;
+    repoFactory: IRepoFactory;
     userRepo: IUserRepository;
     roleRepo: IRoleRepository;
     inviteRepo: IInviteRepository;
+    outboxRepo: IOutboxRepository;
+    
     hasher: IPasswordHash;
     jwtService: IJwtService;
     inviteGenerator: IInviteCodeGenerator
 
-    constructor(userRepo: IUserRepository, roleRepo: IRoleRepository, inviteRepo: IInviteRepository, hasher: IPasswordHash, jwtService: IJwtService, inviteGenerator: IInviteCodeGenerator) {
-        this.userRepo = userRepo;
-        this.roleRepo = roleRepo;
-        this.inviteRepo = inviteRepo;
+    constructor(db: DbTxUnion, repoFactory: IRepoFactory, hasher: IPasswordHash, jwtService: IJwtService, inviteGenerator: IInviteCodeGenerator) {
+        const { user, role, invite, outbox } = repoFactory.buildRepos(db);
+        this.userRepo = user;
+        this.roleRepo = role;
+        this.inviteRepo = invite;
+        this.outboxRepo = outbox;
+        this.db = db;
+        this.repoFactory = repoFactory;
         this.hasher = hasher;
         this.jwtService = jwtService;
         this.inviteGenerator = inviteGenerator;
@@ -57,9 +67,23 @@ export class AuthController {
         const hashedPassword = await this.hasher.hashPassword(body.password);
         const defaultNickname = generateRandomName();
         try {
-            // FIXME: how to handle transaction with this pattern while still allowing for mocking?
-            const registeredUser = await this.userRepo.registerUser(body.email, hashedPassword, defaultNickname);
-            await this.roleRepo.assignRoles(registeredUser!.id, new Set(config.user.defaultRoles));
+            const exec = async (userRepo: IUserRepository, roleRepo: IRoleRepository, outboxRepo: IOutboxRepository) => {
+                const registeredUser = await userRepo.registerUser(body.email, hashedPassword, defaultNickname);
+                await roleRepo.assignRoles(registeredUser!.id, new Set(config.user.defaultRoles));
+                await outboxRepo.createEvent("user.registered", "userRegistered", {
+                    userId: registeredUser!.id,
+                    occurredAt: new Date().toISOString(),    
+                });
+            };
+
+            if (isTransaction(this.db)) {
+                await exec(this.userRepo, this.roleRepo, this.outboxRepo);
+            } else {
+                await this.db.transaction(async tx => {
+                    const { user, role, outbox } = this.repoFactory.buildRepos(tx);
+                    await exec(user, role, outbox);
+                });
+            }
             ctx.response.body = "registration success";
         } catch (e) {
             applyDbError(ctx, e);

@@ -1,0 +1,40 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum OrderStatus {
+  CREATED
+  ACCEPTED
+  PICKED_UP
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  idempotencyKey  String?     @unique // Prevents duplicate orders if the client retries a dropped connection
+  requesterId     String      // Links to User Service
+  courierId       String?     // Nullable until a courier accepts
+  supplierId      String?     // Links to Supplier Service
+  
+  pickupLocation  String      // e.g., "The Terrace@COM3"
+  dropoffLocation String      // e.g., "Foyer@PGP"
+  itemDescription String      // e.g., "Black gaming laptop"
+  creditBounty    Int         // Amount reserved for the errand
+  additionalDetails String?   // Optional instructions
+  
+  status          OrderStatus @default(CREATED)
+  expiresAt       DateTime    // Configurable expiry window
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([status])
+  @@index([requesterId])
+  @@index([courierId])
+}

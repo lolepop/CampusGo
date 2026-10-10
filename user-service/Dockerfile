@@ -9,7 +9,7 @@ RUN deno ci
 # dev env
 FROM deps AS development
 WORKDIR /app
-COPY . .
+# COPY . .
 CMD ["deno", "task", "dev"]
 
 # production env

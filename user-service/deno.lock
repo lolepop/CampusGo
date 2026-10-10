@@ -25,6 +25,7 @@
     "jsr:@std/testing@^1.0.21": "1.0.21",
     "npm:@prisma/orm-postgres@8.0.0-rc.11": "8.0.0-rc.11_@prisma+cli-engine@0.4.0_@prisma+management-api-sdk@1.69.0_typanion@3.14.0_vite@8.3.0__@types+node@26.1.2__esbuild@0.28.2",
     "npm:@types/node@^25.6.2": "25.9.7",
+    "npm:amqplib@^2.2.0": "2.2.0",
     "npm:argon2@~0.45.1": "0.45.1",
     "npm:dotenv@^17.4.2": "17.4.2",
     "npm:jose@^6.2.12": "6.2.12",
@@ -1878,6 +1879,9 @@
       ],
       "bin": true
     },
+    "amqplib@2.2.0": {
+      "integrity": "sha512-VifzN9aHs/Q3zTruVHXh2yCisQyXexBN91CQ2E5iSyUKyNjH6ilYhJGte5AXZH/Bj1PaH7SwPhyuSf6Msd2udw=="
+    },
     "ansi-escapes@7.3.0": {
       "integrity": "sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg==",
       "dependencies": [
@@ -3699,6 +3703,7 @@
       "dependencies": [
         "npm:@prisma/orm-postgres@8.0.0-rc.11",
         "npm:@types/node@^25.6.2",
+        "npm:amqplib@^2.2.0",
         "npm:argon2@~0.45.1",
         "npm:dotenv@^17.4.2",
         "npm:jose@^6.2.12",

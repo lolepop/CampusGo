@@ -16,6 +16,7 @@ const accessTtl = required('JWT_ACCESS_TOKEN_TTL');
 const refreshTtl = required('JWT_REFRESH_TOKEN_TTL');
 
 const dbConnectionString = Deno.env.get("DATABASE_URL");
+const rabbitMqConnectionString = Deno.env.get("RABBITMQ_CONNECTION");
 
 const config = {
     shouldGenerateLogfile: false,
@@ -36,6 +37,7 @@ const config = {
     },
     adminInviteCodeExpiryTime: 24 * 60 * 60, // seconds
     dbConnectionString,
+    rabbitMqConnectionString,
 };
 
 export default config;
