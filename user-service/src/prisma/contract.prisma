@@ -57,6 +57,7 @@ model Outbox {
     type String // e.g. userRegistered
     topic String // e.g. "user.registered"
     payload Json // serialised payload
+    metadata Json? // W3C trace context, separate from the event payload
     status OutboxStatus @default(PENDING)
     retryCount Int @default(0)
     errorMessage String?

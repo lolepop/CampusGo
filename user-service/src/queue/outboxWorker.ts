@@ -1,5 +1,9 @@
 import log from "../log.ts";
 import type { IQueueProvider } from "./provider.ts";
+import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+import { extractTraceContext } from "../telemetry/propagation.ts";
+import { recordError, withSpan } from "../telemetry/tracing.ts";
+import { outboxAttempts, outboxBatchFailures, outboxConfirmationDelay, outboxLastPoll, outboxWorkerRunning } from "../telemetry/queue.ts";
 
 export const BATCH_SIZE = 50;
 export const MAX_RETRIES = 5;
@@ -9,11 +13,13 @@ export const ERROR_BACKOFF_MS = 2000;
 
 /** a row pending relay, shaped for the worker's needs. */
 export interface OutboxRow {
+    readonly createdAt?: Temporal.Instant;
     readonly id: string | number;
     readonly topic: string;
     readonly type: string;
     readonly payload: object;
     readonly retryCount: number;
+    readonly metadata?: unknown;
 }
 
 export interface IOutboxTx {
@@ -56,8 +62,12 @@ export class OutboxWorker {
             return;
         }
         this.running = true;
-        this.loopPromise = this.runLoop().catch(err => {
+        outboxWorkerRunning.record(1);
+        this.loopPromise = context.with(ROOT_CONTEXT, () => this.runLoop()).catch(err => {
             log.error(`OutboxWorker loop crashed: ${err?.stack ?? err}`);
+        }).finally(() => {
+            this.running = false;
+            outboxWorkerRunning.record(0);
         });
         log.info("OutboxWorker started");
     }
@@ -67,6 +77,7 @@ export class OutboxWorker {
         if (!this.running)
             return;
         this.running = false;
+        outboxWorkerRunning.record(0);
         this.sleepCts?.(); // force wakeup and exit polling loop
 
         log.info("OutboxWorker stopping");
@@ -88,41 +99,56 @@ export class OutboxWorker {
         });
     }
 
+    /** Restore this row's origin context, trace one attempt, and measure confirmation delay before completion bookkeeping. */
     async relayRow(tx: IOutboxTx, row: OutboxRow): Promise<void> {
-        try {
-            await this.msgQueue.publishEvent(row.topic, {
-                type: row.type,
-                ...row.payload,
-            });
-            await tx.markCompleted(row.id);
-        } catch (e) {
-            const errMsg = e instanceof Error ? e.message : JSON.stringify(e);
-            const newRetryCount = row.retryCount + 1;
-            const shouldFail = newRetryCount >= MAX_RETRIES;
-            const nextRetryAt = shouldFail ?
-                null :
-                Temporal.Now.instant().add({
-                    milliseconds: calcExpBackoff(BASE_RETRY_DELAY_MS, newRetryCount),
+        return await withSpan("outbox.relay", {
+            attributes: { "outbox.id": row.id, "outbox.retry_count": row.retryCount },
+        }, async span => {
+            try {
+                await this.msgQueue.publishEvent(row.topic, {
+                    type: row.type,
+                    ...row.payload,
                 });
-    
-            if (shouldFail) {
-                log.error(`OutboxWorker giving up on row ${row.id} after ${newRetryCount} retries: ${errMsg}`);
-            } else {
-                log.warn(`OutboxWorker failed row ${row.id} (attempt ${newRetryCount}): ${errMsg}`);
-            }
+                if (row.createdAt) {
+                    const delay = (Date.now() - row.createdAt.epochMilliseconds) / 1000;
+                    if (Number.isFinite(delay))
+                        outboxConfirmationDelay.record(Math.max(0, delay));
+                }
+                await tx.markCompleted(row.id);
+                outboxAttempts.add(1, { outcome: "success" });
+            } catch (e) {
+                recordError(e, span);
+                const errMsg = e instanceof Error ? e.message : JSON.stringify(e);
+                const newRetryCount = row.retryCount + 1;
+                const shouldFail = newRetryCount >= MAX_RETRIES;
+                outboxAttempts.add(1, { outcome: shouldFail ? "exhausted" : "retry" });
+                const nextRetryAt = shouldFail ?
+                    null :
+                    Temporal.Now.instant().add({
+                        milliseconds: calcExpBackoff(BASE_RETRY_DELAY_MS, newRetryCount),
+                    });
 
-            await tx.markFailed(row.id, errMsg, newRetryCount, nextRetryAt);
-        }
+                if (shouldFail) {
+                    log.error(`OutboxWorker giving up on row ${row.id} after ${newRetryCount} retries: ${errMsg}`);
+                } else {
+                    log.warn(`OutboxWorker failed row ${row.id} (attempt ${newRetryCount}): ${errMsg}`);
+                }
+
+                await tx.markFailed(row.id, errMsg, newRetryCount, nextRetryAt);
+            }
+        }, extractTraceContext(row.metadata));
     }
 
     private async runLoop(): Promise<void> {
         while (this.running) {
             try {
                 const processed = await this.relayOnce();
+                outboxLastPoll.record(Date.now() / 1000);
                 // idle wait
                 if (processed === 0 && this.running)
                     await this.sleep(POLL_INTERVAL_MS);
             } catch (e) {
+                outboxBatchFailures.add(1);
                 const errMsg = e instanceof Error ? e.message : JSON.stringify(e);
                 log.error(`OutboxWorker batch failed: ${errMsg}`);
                 await this.sleep(ERROR_BACKOFF_MS);

@@ -113,3 +113,27 @@ generate documentation for README.md under user-service. capture the following i
 ensure it is concise
 ```
 - output used: sections were rearranged to have better logical ordering. the tool generated extra items such as a "how to run without containers" section. this was unnecessary, so similar items were removed.
+
+# 26/10/2026
+- Tool used: codex
+- Mode: Generation
+- Prompt:
+```
+scaffold setup of opentelemetry deno in user service (add env vars to docker compose). it should expose the http/grpc interface and push to a central opentelemetry collector (not present in compose yet)
+write a set of hooks to intercept http inbound/outbound requests from oak.
+add correlation/trace id to every request made (including handlers for rpc). ensure responses also contain modify the outbox table with a "metadata" column that is sent together with any item to the rabbitmq broker. make sure that correlation id is returned in http requests when generated.
+make use of opentelemetry spans to demarcate operations and context like db transactions and broker actions (publish, rpc sent etc.)
+```
+- output used: most of the hooks provided made sense. i did a scan through and made sure that existing functional/business logic behaviour was not modified. it added a lot of random integration tests (db, queue) which were removed.
+
+- Prompt:
+```
+create an outbox reliability monitoring worker in user service. updates should occur every 30 seconds. then the metrics poll will automatically pick up the last metric.
+we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
+```
+- output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
+
+- Prompt:
+```
+connect otel-collector to prometheus and prometheus to grafana. the necessary images have already been configured in the docker compose config. place the appropriate config files in /observability. ignore any trace exports for now and focus on metrics alone. ensure that prometheus grabs rabbitmq's exported metrics.
+```

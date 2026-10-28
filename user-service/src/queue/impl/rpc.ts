@@ -3,6 +3,7 @@ import type { DbTxUnion } from "../../prisma/db.ts";
 import type { IRepoFactory } from "../../prisma/factory.ts";
 import type { IQueueProvider } from "../provider.ts";
 import { RpcBadRequest, RpcRouter } from "../rpc/router.ts";
+import { recordError } from "../../telemetry/tracing.ts";
 
 // exmaple of rpc response messages:
 // const q = await rabbitMqProvider.createReplyQueue();
@@ -34,6 +35,7 @@ class RpcServer {
             const u = await user.getUserByIdPublic(userId);
             return { userExists: !!u };
         } catch (e) {
+            recordError(e);
             log.warn(`RpcServer [checkUserExists]: failed with error ${e instanceof Error ? e.stack : e}`);
             throw new RpcBadRequest("DB_ERROR");
         }

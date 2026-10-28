@@ -12,6 +12,12 @@ import { repoFactory } from "./prisma/factory.ts";
 import { makeRpcServer } from "./queue/impl/rpc.ts";
 import { makeOutboxWorker } from "./queue/impl/outbox.ts";
 import type { RabbitMqProvider } from "./queue/provider.ts";
+import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
+import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
+import { outboxWorkerRunning, rabbitAvailable } from "./telemetry/queue.ts";
+import { OutboxRepository } from "./prisma/outbox.ts";
+import { UserRepository } from "./prisma/users.ts";
+import { AccountMetricsMonitor } from "./telemetry/user.ts";
 
 const flags = parseArgs(Deno.args, {
     boolean: ["gen-invite"],
@@ -32,7 +38,7 @@ const startQueueTasks = async () => {
         try {
             rabbitMqProvider = await buildDefaultProvider();
         } catch (e) {
-            log.warn(`first connection to queue failed: ${e}`);
+            // log.warn(`first connection to queue failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
         }
     }
@@ -85,6 +91,7 @@ const createPrivateRouter = () => {
 
 const main = (port: number) => {
     const app = new Application();
+    app.use(httpTelemetryMiddleware);
     
     const publicRouter = createPublicRouter();
     app.use(publicRouter.routes());
@@ -94,12 +101,22 @@ const main = (port: number) => {
     app.use(privateRouter.routes());
     app.use(privateRouter.allowedMethods());
     
-    app.listen({ port });
+    Deno.serve({ port }, createHttpHandler(app));
 };
 
 if (flags["gen-invite"]) {
     await generateInviteCodeCli();
 } else {
+    // Monitoring runs even while the RabbitMQ connection or relay worker is unavailable.
+    rabbitAvailable.record(0);
+    outboxWorkerRunning.record(0);
+    const outboxMonitor = new OutboxMetricsMonitor(() => new OutboxRepository(db).getMetricsSnapshot());
+    const accountMonitor = new AccountMetricsMonitor(() => new UserRepository(db).getMetricsSnapshot());
+    outboxMonitor.start();
+    accountMonitor.start();
+    globalThis.addEventListener("unload", () => {
+        Promise.allSettled([outboxMonitor.stop(), accountMonitor.stop()]);
+    });
     const port = Number(Deno.env.get("PORT") ?? 3000);
     log.info(`starting on port ${port}`);
     startQueueTasks();

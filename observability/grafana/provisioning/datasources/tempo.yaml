@@ -1,0 +1,25 @@
+apiVersion: 1
+
+datasources:
+  - name: CampusGo Tempo
+    uid: campusgo-tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      tracesToMetrics:
+        datasourceUid: campusgo-prometheus
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'
+        tags:
+          - key: service.name
+            value: service_name
+          - key: deployment.environment.name
+            value: deployment_environment_name
+        queries:
+          # Double dollars preserve Grafana's macros during provisioning environment expansion.
+          - name: HTTP requests per second
+            query: 'sum(rate(campusgo_http_server_request_duration_seconds_count{$$__tags}[1m]))'
+          - name: Average HTTP response-generation latency
+            query: 'sum(rate(campusgo_http_server_request_duration_seconds_sum{$$__tags}[1m])) / (sum(rate(campusgo_http_server_request_duration_seconds_count{$$__tags}[1m])) > 0)'

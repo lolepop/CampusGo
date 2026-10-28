@@ -3,6 +3,7 @@ import type { IRepoFactory } from "../../prisma/factory.ts";
 import type { IOutboxRepository, PendingEvent } from "../../prisma/outbox.ts";
 import { OutboxWorker, type IOutboxSource, type IOutboxTx, type OutboxRow } from "../outboxWorker.ts";
 import type { IQueueProvider } from "../provider.ts";
+import { withTracedTransaction } from "../../prisma/transaction.ts";
 
 // wrappers around db handling
 const makeOutboxTx = (outbox: IOutboxRepository): IOutboxTx => ({
@@ -18,7 +19,7 @@ const makeOutboxTx = (outbox: IOutboxRepository): IOutboxTx => ({
 
 const makeOutboxSource = (db: Db, repoFactory: IRepoFactory): IOutboxSource => ({
     withTransaction: <R>(fn: (tx: IOutboxTx) => Promise<R>) =>
-        db.transaction(tx => {
+        withTracedTransaction(db, tx => {
             const { outbox } = repoFactory.buildRepos(tx);
             return fn(makeOutboxTx(outbox));
         }),

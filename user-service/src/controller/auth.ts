@@ -15,6 +15,7 @@ import type { JWTPayload } from "jose";
 import { isTransaction, type DbTxUnion } from "../prisma/db.ts";
 import type { IRepoFactory } from "../prisma/factory.ts";
 import type { IOutboxRepository } from "../prisma/outbox.ts";
+import { withTracedTransaction } from "../prisma/transaction.ts";
 
 // TODO: clarify if need to be specifically university email
 export const registrationSchema = z.object({
@@ -80,7 +81,7 @@ export class AuthController {
             if (isTransaction(this.db)) {
                 await exec(this.userRepo, this.roleRepo, this.outboxRepo);
             } else {
-                await this.db.transaction(async tx => {
+                await withTracedTransaction(this.db, async tx => {
                     const { user, role, outbox } = this.repoFactory.buildRepos(tx);
                     await exec(user, role, outbox);
                 });

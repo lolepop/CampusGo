@@ -1,0 +1,29 @@
+# Tempo 3.x single-binary deployment; all trace storage stays on the dedicated volume.
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 48h
+
+usage_report:
+  reporting_enabled: false

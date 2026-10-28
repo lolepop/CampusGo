@@ -6,6 +6,7 @@ import { RoleRepository } from "../prisma/roles.ts";
 import { InviteRepository } from "../prisma/invite.ts";
 import { UserRepository } from "../prisma/users.ts";
 import { OutboxRepository, type IOutboxRepository } from "./outbox.ts";
+import { instrumentRepository } from "../telemetry/database.ts";
 
 export interface Repos {
     invite: IInviteRepository;
@@ -21,10 +22,10 @@ export interface IRepoFactory {
 class RepoFactory implements IRepoFactory {
     buildRepos(db: DbTxUnion): Repos {
         return {
-            invite: new InviteRepository(db),
-            role: new RoleRepository(db),
-            user: new UserRepository(db),
-            outbox: new OutboxRepository(db),
+            invite: instrumentRepository("invite", new InviteRepository(db)),
+            role: instrumentRepository("role", new RoleRepository(db)),
+            user: instrumentRepository("user", new UserRepository(db)),
+            outbox: instrumentRepository("outbox", new OutboxRepository(db)),
         };
     }
 }

@@ -4,6 +4,68 @@ networks:
     # internal: true
 
 services:
+  # metrics pipeline: service pushes to otel-collector. prometheus ingests metrics from collector and collector exports traces to tempo. grafana is a unified dashboard to show both
+  tempo:
+    image: grafana/tempo:3.1.1
+    working_dir: /var/tempo
+    command: ["-target=all", "-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [private_net]
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.163.0-nightly.ea6d627
+    command: ["--config=/etc/otelcol/config.yaml"]
+    mem_limit: 256m
+    depends_on:
+      tempo:
+        condition: service_started
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:9464:9464"
+      - "127.0.0.1:13133:13133"
+    networks: [private_net]
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      otel-collector:
+        condition: service_started
+    networks: [private_net]
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      tempo:
+        condition: service_started
+    networks: [private_net]
+
   # reverse proxy for backend api routing
   api_gateway:
     build:
@@ -11,7 +73,7 @@ services:
     # restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"
-      - "127.0.0.1:8081:8080" # exposes private endpoint for testing, should not be visible to public
+      - "8081:8080" # exposes private endpoint for testing, should not be visible to public
     volumes:
       - ./api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -63,6 +125,7 @@ services:
       RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbitmq_management path_prefix "/rabbitmq"'
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./observability/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
 
   # user service
   user_db:
@@ -74,7 +137,7 @@ services:
       POSTGRES_PASSWORD: ${USER_DB_PW}
       POSTGRES_DB: users
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
     volumes:
       - user_pgdata:/var/lib/postgresql
     healthcheck:
@@ -100,9 +163,22 @@ services:
     depends_on:
       user_db:
         condition: service_healthy
+      # otel-collector:
+      #   condition: service_started
     environment:
       NODE_ENV: development
       DATABASE_URL: ${USER_DB_URL}
+      OTEL_DENO: "true"
+      OTEL_DENO_METRICS: ${USER_OTEL_METRICS:-true}
+      OTEL_METRIC_EXPORT_INTERVAL: ${USER_OTEL_METRIC_EXPORT_INTERVAL:-10000}
+      OTEL_SERVICE_NAME: user-service
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=campusgo,deployment.environment.name=development
+      OTEL_PROPAGATORS: tracecontext
+      OTEL_TRACES_SAMPLER: parentbased_always_on
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${USER_OTEL_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${USER_OTEL_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_HEADERS: ${USER_OTEL_HEADERS:-}
+      OTEL_DENO_CONSOLE: ignore
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -124,13 +200,27 @@ services:
     depends_on:
       user_db:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     environment:
       NODE_ENV: production
       DATABASE_URL: ${USER_DB_URL}
+      OTEL_DENO: "true"
+      OTEL_DENO_METRICS: ${USER_OTEL_METRICS:-true}
+      OTEL_METRIC_EXPORT_INTERVAL: ${USER_OTEL_METRIC_EXPORT_INTERVAL:-10000}
+      OTEL_SERVICE_NAME: user-service
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=campusgo,deployment.environment.name=production
+      OTEL_PROPAGATORS: tracecontext
+      OTEL_TRACES_SAMPLER: parentbased_always_on
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${USER_OTEL_PROTOCOL:-http/protobuf}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${USER_OTEL_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_HEADERS: ${USER_OTEL_HEADERS:-}
+      OTEL_DENO_CONSOLE: ignore
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_ACCESS_TOKEN_TTL: ${JWT_ACCESS_TOKEN_TTL}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_TOKEN_TTL: ${JWT_REFRESH_TOKEN_TTL}
+      RABBITMQ_CONNECTION: ${RABBITMQ_CONNECTION}
 
   # supplier service
   supplier_db:
@@ -338,3 +428,6 @@ volumes:
   order_pgdata:
   credit_pgdata:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:

@@ -1,4 +1,5 @@
-import { db, type DbTxUnion } from "./db.ts";
+import { db, type DbTxUnion, isTransaction } from "./db.ts";
+import type { AccountSnapshot } from "../telemetry/user.ts";
 import log from "../log.ts";
 import Constants from "./constants.ts";
 import { DbError, ErrorType, Role } from "./common.ts";
@@ -52,6 +53,21 @@ export class UserRepository implements IUserRepository {
 
     constructor(db: DbTxUnion) {
         this.db = db;
+    }
+
+    /** aggregate for monitoring: total counts of suspended, non-suspended (to infer total users) */
+    async getMetricsSnapshot(): Promise<AccountSnapshot> {
+        const query = db.raw.sql`
+            SELECT
+                (COUNT(*) FILTER (WHERE NOT "isSuspended"))::integer AS "notSuspended",
+                (COUNT(*) FILTER (WHERE "isSuspended"))::integer AS suspended
+            FROM "user"
+        `.returnsRow({
+            notSuspended: db.sql.public.user.columns.id,
+            suspended: db.sql.public.user.columns.id,
+        }).build();
+        const rows = isTransaction(this.db) ? await this.db.query(query) : await this.db.runtime().query(query);
+        return { notSuspended: rows[0].notSuspended, suspended: rows[0].suspended };
     }
 
     async registerUser(email: string, hashedPassword: string, nickname: string): Promise<RawUserRecord> {

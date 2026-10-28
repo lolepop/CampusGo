@@ -4,8 +4,11 @@ import log from "../log.ts";
 import z from "zod";
 import config from "../config.ts";
 import { analysePasswordCategories } from "../util/password.ts";
+import { recordError } from "../telemetry/tracing.ts";
 
 export const applyDbError = <R extends string>(ctx: RouterContext<R>, e: unknown) => {
+    if (!(e instanceof DbError) || !e.isUserFault)
+        recordError(e);
     if (e instanceof DbError) {
         if (!e.isUserFault)
             log.warn(`unknown db error error detected: ${e} (origin: ${e.stack})`)
