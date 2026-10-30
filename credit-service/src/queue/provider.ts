@@ -1,5 +1,9 @@
 import amqp from "amqplib";
 import { TransientReplyQueue } from "./transientReplyQueue.ts";
+import { captureTraceContext } from "../telemetry/propagation.ts";
+import { SpanKind } from "@opentelemetry/api";
+import { withMessagingSpan } from "../telemetry/messaging.ts";
+import { rabbitAvailable, rabbitTransitions } from "../telemetry/queue.ts";
 
 const DEFAULT_RPC_TIMEOUT = 60 * 1000;
 const MAX_RPC_PENDING = 10000;
@@ -37,6 +41,7 @@ export class RabbitMqProvider implements IQueueProvider {
     private channelSetupHandler: ChannelSetupHandler;
 
     private state: ProviderState = "connecting";
+    private opened = false;
     private reconnectTask: Promise<void> | null = null;
     private onStateChangeListeners = new Set<ProviderStateListener>();
     private replyQueues = new Set<TransientReplyQueue>();
@@ -134,9 +139,18 @@ export class RabbitMqProvider implements IQueueProvider {
         });
     }
 
+    /** Update availability and count actual disconnect/reconnect transitions once, excluding initial connect and deliberate close. */
     private setState(state: ProviderState): void {
         if (this.state === state || this.state === "closed")
             return;
+        if (this.state === "open" && state === "connecting")
+            rabbitTransitions.add(1, { transition: "disconnect" });
+        if (state === "open") {
+            if (this.opened)
+                rabbitTransitions.add(1, { transition: "reconnect" });
+            this.opened = true;
+        }
+        rabbitAvailable.record(state === "open" ? 1 : 0);
         this.state = state;
         for (const emit of this.onStateChangeListeners) {
             emit(state);
@@ -230,30 +244,41 @@ export class RabbitMqProvider implements IQueueProvider {
         return rq;
     }
 
+    /** Publish a confirmed reply with a fresh producer span and its W3C headers; preserve reply matching. */
     async replyToRpcCaller(replyTo: string, correlationId: string, payload: Record<string, unknown>): Promise<void> {
-        const ch = this.ensureChannel();
-        const encodedPayload = Buffer.from(JSON.stringify(payload));
-        await new Promise<void>((res, rej) => {
-            ch.sendToQueue(replyTo, encodedPayload, {
-                contentType: "application/json",
-                correlationId,
-                timestamp: Date.now(),
-            }, err => (err ? rej(err) : res()));
+        await withMessagingSpan("rpc.reply", "rpc.reply", SpanKind.PRODUCER, async span => {
+            const ch = this.ensureChannel();
+            const encodedPayload = Buffer.from(JSON.stringify(payload));
+            span.setAttribute("messaging.message.conversation_id", correlationId);
+            await new Promise<void>((res, rej) => {
+                ch.sendToQueue(replyTo, encodedPayload, {
+                    contentType: "application/json",
+                    correlationId,
+                    timestamp: Date.now(),
+                    headers: captureTraceContext(),
+                }, err => (err ? rej(err) : res()));
+            });
         });
     }
 
 
+    /** Trace and time a confirmed event publication, injecting producer context without modifying business JSON. */
     async publishEvent(routingKey: string, payload: EventPayload) {
-        const ch = this.ensureChannel();
-        const encodedPayload = Buffer.from(JSON.stringify(payload));
-        await new Promise<void>((res, rej) => {
-            ch.publish("app.events", routingKey, encodedPayload, {
-                persistent: true,
-                contentType: "application/json",
-                messageId: payload.eventId ?? crypto.randomUUID(),
-                timestamp: Date.now(),
-                type: payload.type,
-            }, err => (err ? rej(err) : res()));
+        await withMessagingSpan("publish", "app.events", SpanKind.PRODUCER, async span => {
+            const ch = this.ensureChannel();
+            const encodedPayload = Buffer.from(JSON.stringify(payload));
+            const messageId = payload.eventId ?? crypto.randomUUID();
+            span.setAttributes({ "messaging.message.id": messageId, "messaging.rabbitmq.destination.routing_key": routingKey });
+            await new Promise<void>((res, rej) => {
+                ch.publish("app.events", routingKey, encodedPayload, {
+                    persistent: true,
+                    contentType: "application/json",
+                    messageId,
+                    timestamp: Date.now(),
+                    type: payload.type,
+                    headers: captureTraceContext(),
+                }, err => (err ? rej(err) : res()));
+            });
         });
     }
 

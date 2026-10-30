@@ -38,7 +38,7 @@ const startQueueTasks = async () => {
         try {
             rabbitMqProvider = await buildDefaultProvider();
         } catch (e) {
-            // log.warn(`first connection to queue failed: ${e}`);
+            log.warn(`first connection to queue failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
         }
     }

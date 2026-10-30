@@ -20,6 +20,7 @@
     "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/testing@^1.0.21": "1.0.21",
+    "npm:@opentelemetry/api@1.9.0": "1.9.0",
     "npm:@prisma/orm-postgres@8.0.0-rc.11": "8.0.0-rc.11_@prisma+cli-engine@0.4.0_@prisma+management-api-sdk@1.69.0_typanion@3.14.0_vite@8.3.4__@types+node@26.1.2__esbuild@0.28.2",
     "npm:@types/node@^25.6.2": "25.9.9",
     "npm:amqplib@^2.2.0": "2.2.0",
@@ -27,7 +28,7 @@
     "npm:jose@6": "6.2.12",
     "npm:jose@^6.2.12": "6.2.12",
     "npm:path-to-regexp@^6.3.0": "6.3.0",
-    "npm:prisma@8.0.0-rc.15": "8.0.0-rc.15_@types+node@25.9.9_pg@8.22.0_typanion@3.14.0_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1",
+    "npm:prisma@8.0.0-rc.15": "8.0.0-rc.15_@opentelemetry+api@1.9.0_@types+node@25.9.9",
     "npm:prisma@^5.22.0": "5.22.0",
     "npm:winston@^3.19.0": "3.19.0",
     "npm:zod@^4.6.5": "4.6.5"
@@ -570,7 +571,7 @@
         "effect"
       ]
     },
-    "@effect/vitest@4.0.0-rc.112_effect@4.0.0-rc.112_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1_@types+node@25.9.9_esbuild@0.28.2_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_yaml@2.9.1": {
+    "@effect/vitest@4.0.0-rc.112_effect@4.0.0-rc.112_@opentelemetry+api@1.9.0_@types+node@25.9.9": {
       "integrity": "sha512-mEKh/FI64mt8JK1/v9mpOrJYdnp+UFZdRUBMEdZMiKz7klg6NPqVgg/oeAGH6wOOQc2iAPcfc2H9BbAv1KyzMQ==",
       "dependencies": [
         "effect",
@@ -1206,6 +1207,9 @@
         "@octokit/webhooks-methods"
       ]
     },
+    "@opentelemetry/api@1.9.0": {
+      "integrity": "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="
+    },
     "@oxc-project/types@0.139.0": {
       "integrity": "sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw=="
     },
@@ -1224,7 +1228,7 @@
         "string-width@8.3.0"
       ]
     },
-    "@prisma/composer-cli@0.20.0_@prisma+cli-engine@0.4.0_@prisma+management-api-sdk@1.69.0_@types+node@25.9.9_pg@8.22.0_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1": {
+    "@prisma/composer-cli@0.20.0_@prisma+cli-engine@0.4.0_@opentelemetry+api@1.9.0_@types+node@25.9.9": {
       "integrity": "sha512-2zG2uIbHeuLebAsueQufUZZUj7CvyRyTSL02BZh//pOJLXIvzS9CXRdhTE+YlQfhaqtzn1a3rTtbjjn+zmdvBg==",
       "dependencies": [
         "@prisma/cli-engine",
@@ -1237,7 +1241,7 @@
       ],
       "bin": true
     },
-    "@prisma/composer@0.20.0_@types+node@25.9.9_pg@8.22.0_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1": {
+    "@prisma/composer@0.20.0_@opentelemetry+api@1.9.0_@types+node@25.9.9": {
       "integrity": "sha512-Wj/ltt7YxKW86Nf8H2ioajqzz7P1UB8Or2yUIgIxpTJFz+jWu5TLx47fMrbnyubpNPiylnY86oiaBYuLjaefvA==",
       "dependencies": [
         "@effect/sql-d1",
@@ -1841,7 +1845,7 @@
     "agent-base@7.1.4": {
       "integrity": "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="
     },
-    "alchemy@2.0.0-beta.74_effect@4.0.0-rc.112_pg@8.22.0_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_@types+node@25.9.9_esbuild@0.28.2_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1": {
+    "alchemy@2.0.0-beta.74_effect@4.0.0-rc.112_@opentelemetry+api@1.9.0_@types+node@25.9.9": {
       "integrity": "sha512-Dpy6lZxk1SS5sZeV8vA79c0RaMLcniFCKewai1jEEamzFz0dR+yi2Ckmgi59ubMLAKvp9LNGNnhvRXfF0ETbkA==",
       "dependencies": [
         "@alchemy.run/cloudflare-runtime",
@@ -3016,7 +3020,7 @@
       "scripts": true,
       "bin": true
     },
-    "prisma@8.0.0-rc.15_@types+node@25.9.9_pg@8.22.0_typanion@3.14.0_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_vitest@4.1.11__@types+node@25.9.9__vite@8.3.4___@types+node@25.9.9___esbuild@0.28.2___yaml@2.9.1__esbuild@0.28.2__yaml@2.9.1": {
+    "prisma@8.0.0-rc.15_@opentelemetry+api@1.9.0_@types+node@25.9.9": {
       "integrity": "sha512-43knhCchbX946gFapz1I4DkbCPnHG4GlMxWQpZ+V165O4Ixy8Re5i5P6RPMRHlg1ykYyRmQoMiEGLiHsPovZ+w==",
       "dependencies": [
         "@manypkg/tools",
@@ -3483,9 +3487,11 @@
       ],
       "bin": true
     },
-    "vitest@4.1.11_@types+node@25.9.9_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1_esbuild@0.28.2_yaml@2.9.1": {
+    "vitest@4.1.11_@opentelemetry+api@1.9.0_@types+node@25.9.9_vite@8.3.4__@types+node@25.9.9__esbuild@0.28.2__yaml@2.9.1": {
       "integrity": "sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==",
       "dependencies": [
+        "@opentelemetry/api",
+        "@types/node@25.9.9",
         "@vitest/expect",
         "@vitest/mocker",
         "@vitest/pretty-format",
@@ -3506,6 +3512,10 @@
         "tinyrainbow",
         "vite@8.3.4_@types+node@25.9.9_esbuild@0.28.2_yaml@2.9.1",
         "why-is-node-running"
+      ],
+      "optionalPeers": [
+        "@opentelemetry/api",
+        "@types/node@25.9.9"
       ],
       "bin": true
     },
@@ -3685,6 +3695,7 @@
     ],
     "packageJson": {
       "dependencies": [
+        "npm:@opentelemetry/api@1.9.0",
         "npm:@prisma/orm-postgres@8.0.0-rc.11",
         "npm:@types/node@^25.6.2",
         "npm:amqplib@^2.2.0",

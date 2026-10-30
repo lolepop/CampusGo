@@ -1,3 +1,8 @@
+import { SpanKind } from "@opentelemetry/api";
+import { captureTraceContext, extractTraceContext } from "../telemetry/propagation.ts";
+import { withMessagingSpan } from "../telemetry/messaging.ts";
+import { recordError } from "../telemetry/tracing.ts";
+import { rabbitAvailable, rabbitTransitions } from "../telemetry/queue.ts";
 // src/rabbitmq/client.ts
 // Connection, topology, consumer (Credit -> Order replies) and the confirmed publish used by
 // the outbox worker. Nothing else in the service talks to RabbitMQ directly.
@@ -24,6 +29,9 @@ const REPLY_KEYS = [
 ];
 
 let channel: amqplib.ConfirmChannel | undefined;
+let opened = false;
+let telemetryConnected = false;
+rabbitAvailable.record(0);
 // messageIds the broker handed back because no queue was bound to the routing key
 let returned = new Set<string>();
 
@@ -31,12 +39,26 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const isConnected = () => channel !== undefined;
 
+/** connection diagnostics metrics */
+const observeConnection = (up: boolean) => {
+    if (up === telemetryConnected) return;
+    telemetryConnected = up;
+    rabbitAvailable.record(up ? 1 : 0);
+    if (up) {
+        if (opened) rabbitTransitions.add(1, { transition: "reconnect" });
+        opened = true;
+    } else {
+        rabbitTransitions.add(1, { transition: "disconnect" });
+    }
+};
+
 const setup = async () => {
     const connection = await amqplib.connect(config.rabbitMqUrl!);
     connection.on("error", (e: unknown) => log.error(`RabbitMQ connection error: ${e}`));
 
     try {
         const ch = await connection.createConfirmChannel();
+        ch.on("close", () => observeConnection(false));
         ch.on("error", (e: unknown) => log.error(`RabbitMQ channel error: ${e}`));
         returned = new Set();
         ch.on("return", (m: amqplib.Message) => {
@@ -61,22 +83,27 @@ const setup = async () => {
         await ch.prefetch(10);
         await ch.consume(QUEUE_NAME, async (msg) => {
             if (!msg) return;
-            try {
-                await handleIncomingMessage(msg);
-                ch.ack(msg);
-            } catch (error) {
-                // first failure: requeue once; second failure: dead-letter
-                log.error(`Failed to process ${msg.fields.routingKey}: ${error}`);
-                ch.nack(msg, false, !msg.fields.redelivered);
-            }
+            await withMessagingSpan("process", QUEUE_NAME, SpanKind.CONSUMER, async () => {
+                try {
+                    await handleIncomingMessage(msg);
+                    ch.ack(msg);
+                } catch (error) {
+                    recordError(error);
+                    // first failure: requeue once; second failure: dead-letter
+                    log.error(`Failed to process ${msg.fields.routingKey}: ${error}`);
+                    ch.nack(msg, false, !msg.fields.redelivered);
+                }
+            }, extractTraceContext(msg.properties.headers));
         });
 
         connection.on("close", () => {
+            observeConnection(false);
             channel = undefined;
             log.warn("RabbitMQ connection closed, reconnecting");
             void connectRabbitMQ();
         });
         channel = ch;
+        observeConnection(true);
     } catch (error) {
         await connection.close().catch(() => {});
         throw error;
@@ -116,21 +143,24 @@ export const publishEvent = (
     payload: unknown,
     messageId: string,
 ): Promise<void> =>
-    new Promise((resolve, reject) => {
-        const ch = channel;
-        if (!ch) return reject(new Error("RabbitMQ is not connected"));
-        const body = Buffer.from(JSON.stringify({ type, ...(payload as object) }));
-        ch.publish(
-            EXCHANGE,
-            topic,
-            body,
-            { persistent: true, mandatory: true, contentType: "application/json", messageId, type },
-            (err) => {
-                if (err) return reject(err);
-                if (returned.delete(messageId)) return reject(new Error(`unroutable: no queue bound to ${topic}`));
-                resolve();
-            },
-        );
+    withMessagingSpan("publish", EXCHANGE, SpanKind.PRODUCER, async span => {
+        span.setAttributes({ "messaging.message.id": messageId, "messaging.rabbitmq.destination.routing_key": topic });
+        return await new Promise<void>((resolve, reject) => {
+            const ch = channel;
+            if (!ch) return reject(new Error("RabbitMQ is not connected"));
+            const body = Buffer.from(JSON.stringify({ type, ...(payload as object) }));
+            ch.publish(
+                EXCHANGE,
+                topic,
+                body,
+                { persistent: true, mandatory: true, contentType: "application/json", messageId, type, headers: captureTraceContext() },
+                (err) => {
+                    if (err) return reject(err);
+                    if (returned.delete(messageId)) return reject(new Error(`unroutable: no queue bound to ${topic}`));
+                    resolve();
+                },
+            );
+        });
     });
 
 const handleIncomingMessage = async (msg: amqplib.ConsumeMessage) => {

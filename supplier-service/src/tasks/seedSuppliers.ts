@@ -1,3 +1,4 @@
+import log from "../log.ts";
 // Read the csv seed data file with Deno.readTextFile()
 // Parse the file with a CSV library, using the first row as column names
 // Convert each field, trim names and descriptions, map each CSV category 
@@ -164,8 +165,8 @@ export async function main() {
     }
 
     if (dryRun) {
-        console.log(JSON.stringify(suppliers, null, 2));
-        console.log(`Validated ${suppliers.length} suppliers across ${new Set(suppliers.map(s => s.building)).size} buildings. No database changes made.`);
+        log.info(JSON.stringify(suppliers, null, 2));
+        log.info(`Validated ${suppliers.length} suppliers across ${new Set(suppliers.map(s => s.building)).size} buildings. No database changes made.`);
         return;
     }
     if (!Deno.env.get("DATABASE_URL")) throw new Error("DATABASE_URL is required");
@@ -225,7 +226,7 @@ export async function main() {
             }
             return { createdLocations, createdSuppliers, skippedSuppliers };
         });
-        console.log("Seed complete:", result);
+        log.info("Seed complete:", result);
     } finally {
         await db.close();
     }
@@ -235,7 +236,7 @@ if (import.meta.main) {
     try {
         await main();
     } catch (error) {
-        console.error(error instanceof Error ? error.message : String(error));
+        log.error(error instanceof Error ? error.message : String(error));
         Deno.exit(1);
     }
 }

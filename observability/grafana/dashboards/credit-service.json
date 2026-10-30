@@ -1,0 +1,1905 @@
+{
+  "id": null,
+  "uid": "campusgo-credit-metrics",
+  "title": "CampusGo / Credit service metrics",
+  "description": "Generic operational metrics for credit-service; traces are available in Tempo.",
+  "tags": [
+    "campusgo",
+    "user-service",
+    "opentelemetry",
+    "metrics"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Explore credit-service traces",
+      "type": "link",
+      "url": "/explore?schemaVersion=1&panes=%7B%22traces%22%3A%7B%22datasource%22%3A%22campusgo-tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7B+resource.service.name+%3D+%5C%22credit-service%5C%22+%7D%22%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-30m%22%2C%22to%22%3A%22now%22%7D%7D%7D&orgId=1",
+      "targetBlank": false
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Environment (one at a time)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "campusgo-prometheus"
+        },
+        "definition": "label_values(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\"}, deployment_environment_name)",
+        "query": {
+          "query": "label_values(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\"}, deployment_environment_name)",
+          "refId": "variable-environment"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "development",
+          "value": "development"
+        },
+        "options": []
+      },
+      {
+        "name": "route",
+        "label": "HTTP route",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "campusgo-prometheus"
+        },
+        "definition": "label_values(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}, http_route)",
+        "query": {
+          "query": "label_values(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}, http_route)",
+          "refId": "variable-route"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      },
+      {
+        "name": "health",
+        "label": "Health checks",
+        "type": "custom",
+        "query": "Exclude : /(public|private)/health,Include : ^$",
+        "current": {
+          "text": "Exclude",
+          "value": "/(public|private)/health"
+        },
+        "options": [],
+        "hide": 0,
+        "multi": false,
+        "includeAll": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Metrics pipeline",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Credit service: native Deno HTTP/database metrics and correlated traces. Durable W3C outbox/message tracing; existing retries and settlement are preserved. Credit retains its five-attempt exhaustion policy and outbound user-service RPC. Health checks are excluded by default; select Include to exercise health traffic."
+      },
+      "description": ""
+    },
+    {
+      "id": 2,
+      "title": "Collector scrape",
+      "type": "stat",
+      "description": "Whether Prometheus can scrape the application-metrics endpoint. UP alone does not prove the user service is exporting.",
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(up{job=\"otel-collector\"}) or vector(0)",
+          "legendFormat": "Collector",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Estimated HTTP requests in selected range",
+      "type": "stat",
+      "description": "Reset-aware extrapolated increase, not an exact audit count. Requires multiple scrapes and excludes health checks by default.",
+      "gridPos": {
+        "x": 6,
+        "y": 3,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__range]))",
+          "legendFormat": "Requests",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP 5xx fraction",
+      "type": "stat",
+      "description": "5xx / all responses over the rate window. Idle or absent telemetry shows no value, rather than a fabricated healthy 0%.",
+      "gridPos": {
+        "x": 12,
+        "y": 3,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((sum(rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\",http_response_status_code=~\"5..\"}[$__rate_interval])) or (sum(rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval])) * 0)) / (sum(rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval])) > 0)) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "5xx",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP p95 latency",
+      "type": "stat",
+      "description": "Bucket-interpolated estimate of response-generation time; excludes streamed-body transmission. Sparse traffic/coarse exported buckets limit accuracy. Inspect actual runtime buckets before interpreting percentiles.",
+      "gridPos": {
+        "x": 18,
+        "y": 3,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(campusgo_http_server_request_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "HTTP request rate by route",
+      "type": "timeseries",
+      "description": "Request rate from application histograms. Normalized route templates prevent per-user URL labels.",
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (http_request_method, http_route) (rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))",
+          "legendFormat": "{{http_request_method}} {{http_route}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "HTTP latency percentiles",
+      "type": "timeseries",
+      "description": "Bucket-interpolated estimate of response-generation time; excludes streamed-body transmission. Sparse traffic/coarse exported buckets limit accuracy. Inspect actual runtime buckets before interpreting percentiles.",
+      "gridPos": {
+        "x": 12,
+        "y": 7,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(campusgo_http_server_request_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "p50",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(campusgo_http_server_request_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(campusgo_http_server_request_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "p99",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "HTTP request rate by status",
+      "type": "timeseries",
+      "description": "Successful responses, client errors, and server errors. Expected 4xx outcomes remain separate from server failures.",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (http_response_status_code) (rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval]))",
+          "legendFormat": "{{http_response_status_code}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Messaging operation rate",
+      "type": "timeseries",
+      "description": "User-service publication and RPC activity. No samples is normal before these operations run.",
+      "gridPos": {
+        "x": 12,
+        "y": 15,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (operation, outcome) (rate(campusgo_messaging_operation_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{operation}} / {{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Messaging p95 latency",
+      "type": "timeseries",
+      "description": "Includes round-trip time for rpc.call and publisher-confirmation time for publish/reply operations.",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(campusgo_messaging_operation_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{operation}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Outbox publication outcome rate",
+      "type": "timeseries",
+      "description": "Relay attempts classified as success, retry, or exhausted. Includes completion bookkeeping failures.",
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(campusgo_outbox_publish_attempts_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Estimated outbox outcomes in selected range",
+      "type": "stat",
+      "description": "Attempt outcomes, not unique deliveries. A completion bookkeeping failure after confirmation can trigger a retry.",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (increase(campusgo_outbox_publish_attempts_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__range]))",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Average HTTP response-generation latency",
+      "type": "stat",
+      "description": "Sum of recorded seconds / response count over the rate window. No traffic has no average. Excludes body transmission.",
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "No samples",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(campusgo_http_server_request_duration_seconds_sum{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval])) / (sum(rate(campusgo_http_server_request_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",http_route=~\"${route:regex}\",http_route!~\"${health:raw}\"}[$__rate_interval])) > 0)) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "Requests",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Application telemetry age",
+      "type": "stat",
+      "description": "Age of a timestamp emitted by the application. Collector UP alone cannot prove fresh application exports.",
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"})",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Outbox snapshot age",
+      "type": "stat",
+      "description": "Snapshot polls every 30s. Backlog is unavailable after 90s without success; application state is unavailable after 45s without heartbeat.",
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - max(campusgo_outbox_snapshot_last_success_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"})) and on() (max(campusgo_outbox_snapshot_last_success_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) > 0)",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Outbox backlog",
+      "type": "timeseries",
+      "description": "Row counts from campusgo_outbox_backlog, with no ratio suffix. Ready + delayed = pending. Failed rows exhausted retries. Shared database snapshots must not be summed across replicas.",
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (state) (campusgo_outbox_backlog{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() (((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45)) and on() (max(campusgo_outbox_snapshot_available{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) == 1))",
+          "legendFormat": "{{state}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Oldest pending event age",
+      "type": "timeseries",
+      "description": "Age of the oldest ready or delayed event. Zero only when a fresh snapshot contains no pending rows.",
+      "gridPos": {
+        "x": 12,
+        "y": 39,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(campusgo_outbox_oldest_pending_age_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() (((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45)) and on() (max(campusgo_outbox_snapshot_available{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) == 1))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "RabbitMQ connection available",
+      "type": "stat",
+      "description": "Unitless 0/1 state, not a percentage. 1 = credit-service connection open; 0 = connecting/disconnected/closed. Initial connection failures remain 0.",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(campusgo_rabbitmq_connection_available{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Outbox worker running",
+      "type": "stat",
+      "description": "Unitless 0/1 state, not a percentage. 1 = relay loop running. Also inspect poll age; a running worker may be stalled.",
+      "gridPos": {
+        "x": 12,
+        "y": 46,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(campusgo_outbox_worker_running{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Outbox last successful poll age",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(time() - max(campusgo_outbox_worker_last_success_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"})) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Outbox enqueue-to-confirmation p95",
+      "type": "timeseries",
+      "description": "Per confirmed attempt, from row creation to broker confirmation. Retries may repeat observations; this does not measure downstream consumption.",
+      "gridPos": {
+        "x": 12,
+        "y": 50,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by (le)(rate(campusgo_outbox_confirmation_delay_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval])))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Outbox snapshot failures / second",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 57,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(campusgo_outbox_snapshot_failures_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Outbox batch failures / second",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 57,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(campusgo_outbox_batch_failures_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "title": "Database operation p95",
+      "type": "timeseries",
+      "description": "Logical repository calls and business transactions, not individual SQL statements. Nested timings overlap; do not add them.",
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by (le,operation)(rate(campusgo_database_operation_duration_seconds_bucket{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval])))",
+          "legendFormat": "{{operation}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "title": "Database operation outcomes / second",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome)(rate(campusgo_database_operation_duration_seconds_count{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "title": "Pending outbound RPC calls",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(campusgo_rpc_client_pending{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "title": "RPC terminal outcomes / second",
+      "type": "timeseries",
+      "description": "Caller-side outcomes. User-service currently serves RPC but has no normal outbound RPC calls, so this panel can remain empty.",
+      "gridPos": {
+        "x": 12,
+        "y": 71,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome)(rate(campusgo_rpc_client_calls_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "title": "Active HTTP requests",
+      "type": "timeseries",
+      "description": "Response generation only. Global count; route filter does not apply to in-flight requests.",
+      "gridPos": {
+        "x": 0,
+        "y": 78,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(campusgo_http_server_active_requests{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "title": "RabbitMQ connection transitions / second",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 78,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (transition)(rate(campusgo_rabbitmq_connection_transitions_total{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}[$__rate_interval]))",
+          "legendFormat": "{{transition}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "title": "Total pending outbox events",
+      "type": "stat",
+      "description": "Row count from campusgo_outbox_backlog (ready + delayed), excluding exhausted rows. Hidden when the database snapshot or application telemetry is stale.",
+      "gridPos": {
+        "x": 0,
+        "y": 85,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (state) (campusgo_outbox_backlog{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\",state=~\"ready|delayed\"})) and on() (((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45)) and on() (max(campusgo_outbox_snapshot_available{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) == 1))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "title": "Outbox snapshot available",
+      "type": "stat",
+      "description": "Unitless 0/1 state, not a percentage. 1 = last successful database snapshot is at most 90s old; 0 = no successful or sufficiently fresh snapshot. Missing = stale application telemetry.",
+      "gridPos": {
+        "x": 12,
+        "y": 85,
+        "w": 12,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "campusgo-prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "noValue": "Unavailable",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(campusgo_outbox_snapshot_available{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) and on() ((time() - max(campusgo_telemetry_heartbeat_seconds{service_name=\"credit-service\",deployment_environment_name=~\"${environment:regex}\"}) < 45))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "campusgo-prometheus"
+          },
+          "editorMode": "code",
+          "range": false,
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

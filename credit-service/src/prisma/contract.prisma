@@ -32,6 +32,7 @@ model Outbox {
     type String
     topic String
     payload Json
+    metadata Json? // Allowlisted W3C context, separate from business payload
     status OutboxStatus @default(PENDING)
     retryCount Int @default(0)
     errorMessage String?

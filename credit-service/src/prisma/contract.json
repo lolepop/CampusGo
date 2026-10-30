@@ -147,6 +147,13 @@
                   "kind": "scalar"
                 }
               },
+              "metadata": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/json@1",
+                  "kind": "scalar"
+                }
+              },
               "nextRetryAt": {
                 "nullable": true,
                 "type": {
@@ -207,6 +214,9 @@
                 },
                 "id": {
                   "column": "id"
+                },
+                "metadata": {
+                  "column": "metadata"
                 },
                 "nextRetryAt": {
                   "column": "nextRetryAt"
@@ -375,6 +385,11 @@
                   },
                   "nullable": false
                 },
+                "metadata": {
+                  "codecId": "pg/json@1",
+                  "dataType": "pg/json",
+                  "nullable": true
+                },
                 "nextRetryAt": {
                   "codecId": "pg/timestamptz-temporal@1",
                   "dataType": "pg/timestamptz",
@@ -463,7 +478,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "9defba96cf84f7365ec90e5bca62c26411653e397bf352030772bb7fc06394d7"
+    "storageHash": "9e1f4225d249183d247d599bd455d6f0d21f0a2c95c2f8243513e09d6712fe4a"
   },
   "capabilities": {
     "postgres": {

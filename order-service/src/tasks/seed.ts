@@ -1,3 +1,4 @@
+import log from "../log.ts";
 // Seeds dummy errands for UI testing.
 // Run with: deno task seed
 // supplierIds refer to the supplier service's CSV seed (ids 1-21 on a fresh supplier database);
@@ -25,6 +26,6 @@ if (import.meta.main) {
     for (const order of orders) {
         await db.orm.public.Order.create({ id: crypto.randomUUID(), ...order });
     }
-    console.log(`Database seeded with ${orders.length} dummy orders for UI testing.`);
+    log.info(`Database seeded with ${orders.length} dummy orders for UI testing.`);
     await db.close?.();
 }

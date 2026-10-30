@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'962d7bc4d31bd981a3217df485bf71dffcbafb5c5896035c3639b5f14de778af'>;
+  StorageHashBase<'05567ca56bc1c8291f44f171d8b87eb7feb38972ad23ad4bbf392c9c5a4d76ad'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -277,6 +277,7 @@ export type FieldOutputTypes = {
       readonly topic: CodecTypes['pg/text@1']['output'];
       readonly type: CodecTypes['pg/text@1']['output'];
       readonly payload: CodecTypes['pg/json@1']['output'];
+      readonly metadata: CodecTypes['pg/json@1']['output'] | null;
       readonly status: 'PENDING' | 'COMPLETED';
       readonly retryCount: CodecTypes['pg/int4@1']['output'];
       readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
@@ -323,6 +324,7 @@ export type FieldInputTypes = {
       readonly topic: CodecTypes['pg/text@1']['input'];
       readonly type: CodecTypes['pg/text@1']['input'];
       readonly payload: CodecTypes['pg/json@1']['input'];
+      readonly metadata: CodecTypes['pg/json@1']['input'] | null;
       readonly status: 'PENDING' | 'COMPLETED';
       readonly retryCount: CodecTypes['pg/int4@1']['input'];
       readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
@@ -368,6 +370,7 @@ export type StorageColumnTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly metadata: CodecTypes['pg/json@1']['output'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-string@1']['output'] | null;
       readonly payload: CodecTypes['pg/json@1']['output'];
       readonly retryCount: CodecTypes['pg/int4@1']['output'];
@@ -414,6 +417,7 @@ export type StorageColumnInputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly metadata: CodecTypes['pg/json@1']['input'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-string@1']['input'] | null;
       readonly payload: CodecTypes['pg/json@1']['input'];
       readonly retryCount: CodecTypes['pg/int4@1']['input'];
@@ -462,6 +466,7 @@ export namespace Models {
     topic: CodecTypes['pg/text@1']['output'];
     type: CodecTypes['pg/text@1']['output'];
     payload: CodecTypes['pg/json@1']['output'];
+    metadata: CodecTypes['pg/json@1']['output'] | null;
     status: 'PENDING' | 'COMPLETED';
     retryCount: CodecTypes['pg/int4@1']['output'];
     errorMessage: CodecTypes['pg/text@1']['output'] | null;
@@ -663,6 +668,11 @@ type ContractBase = Omit<
                   readonly nativeType: 'json';
                   readonly codecId: 'pg/json@1';
                   readonly nullable: false;
+                };
+                readonly metadata: {
+                  readonly nativeType: 'json';
+                  readonly codecId: 'pg/json@1';
+                  readonly nullable: true;
                 };
                 readonly status: {
                   readonly nativeType: 'text';
@@ -895,6 +905,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/json@1' };
               };
+              readonly metadata: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/json@1' };
+              };
               readonly status: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -931,6 +945,7 @@ type ContractBase = Omit<
                 readonly topic: { readonly column: 'topic' };
                 readonly type: { readonly column: 'type' };
                 readonly payload: { readonly column: 'payload' };
+                readonly metadata: { readonly column: 'metadata' };
                 readonly status: { readonly column: 'status' };
                 readonly retryCount: { readonly column: 'retryCount' };
                 readonly errorMessage: { readonly column: 'errorMessage' };

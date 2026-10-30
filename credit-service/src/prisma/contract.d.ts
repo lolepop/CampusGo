@@ -18,7 +18,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9defba96cf84f7365ec90e5bca62c26411653e397bf352030772bb7fc06394d7'>;
+  StorageHashBase<'9e1f4225d249183d247d599bd455d6f0d21f0a2c95c2f8243513e09d6712fe4a'>;
 export type ExecutionHash = ExecutionHashBase<string>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
@@ -244,6 +244,7 @@ export type FieldOutputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
       readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly metadata: CodecTypes['pg/json@1']['output'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
       readonly payload: CodecTypes['pg/json@1']['output'];
       readonly retryCount: CodecTypes['pg/int4@1']['output'];
@@ -270,6 +271,7 @@ export type FieldInputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
       readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly metadata: CodecTypes['pg/json@1']['input'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['input'] | null;
       readonly payload: CodecTypes['pg/json@1']['input'];
       readonly retryCount: CodecTypes['pg/int4@1']['input'];
@@ -296,6 +298,7 @@ export type StorageColumnTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
       readonly errorMessage: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly metadata: CodecTypes['pg/json@1']['output'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
       readonly payload: CodecTypes['pg/json@1']['output'];
       readonly retryCount: CodecTypes['pg/int4@1']['output'];
@@ -322,6 +325,7 @@ export type StorageColumnInputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
       readonly errorMessage: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly metadata: CodecTypes['pg/json@1']['input'] | null;
       readonly nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['input'] | null;
       readonly payload: CodecTypes['pg/json@1']['input'];
       readonly retryCount: CodecTypes['pg/int4@1']['input'];
@@ -349,6 +353,7 @@ export namespace Models {
     createdAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
     errorMessage: CodecTypes['pg/text@1']['output'] | null;
     id: CodecTypes['pg/int4@1']['output'];
+    metadata: CodecTypes['pg/json@1']['output'] | null;
     nextRetryAt: CodecTypes['pg/timestamptz-temporal@1']['output'] | null;
     payload: CodecTypes['pg/json@1']['output'];
     retryCount: CodecTypes['pg/int4@1']['output'];
@@ -451,6 +456,12 @@ type ContractBase = Omit<
                     readonly kind: 'function';
                     readonly expression: 'autoincrement()';
                   };
+                  readonly many: false;
+                };
+                readonly metadata: {
+                  readonly dataType: 'pg/json';
+                  readonly codecId: 'pg/json@1';
+                  readonly nullable: true;
                   readonly many: false;
                 };
                 readonly nextRetryAt: {
@@ -618,6 +629,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
+              readonly metadata: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/json@1' };
+              };
               readonly nextRetryAt: {
                 readonly nullable: true;
                 readonly type: {
@@ -654,6 +669,7 @@ type ContractBase = Omit<
                 readonly createdAt: { readonly column: 'createdAt' };
                 readonly errorMessage: { readonly column: 'errorMessage' };
                 readonly id: { readonly column: 'id' };
+                readonly metadata: { readonly column: 'metadata' };
                 readonly nextRetryAt: { readonly column: 'nextRetryAt' };
                 readonly payload: { readonly column: 'payload' };
                 readonly retryCount: { readonly column: 'retryCount' };

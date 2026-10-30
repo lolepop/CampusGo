@@ -1,3 +1,4 @@
+import log from "../log.ts";
 import type { Context } from "@oak/oak";
 import { defaultJwtService, type IJwtService } from "../util/jwt.ts";
 import { fromRawRole, Role } from "../common.ts";
@@ -10,7 +11,7 @@ export interface AuthenticatedUser {
 const reject = (ctx: Context, status: 401 | 403, error: string, userId?: number) => {
     ctx.response.status = status;
     ctx.response.body = { error };
-    console.warn(`${status} ${ctx.request.method} ${ctx.request.url.pathname} user=${userId ?? "unknown"}: ${error}`);
+    log.warn(`${status} ${ctx.request.method} ${ctx.request.url.pathname} user=${userId ?? "unknown"}: ${error}`);
 };
 
 export const authenticationMiddlewareWithJwtProvider = (jwtService: IJwtService, rolesRequired: ReadonlySet<Role>) =>

@@ -132,8 +132,3 @@ create an outbox reliability monitoring worker in user service. updates should o
 we want to measure the following metrics: pending/ready to be sent/delayed (due to temp failure)/fully failed. oldest unsent item. put the code into the telemetry directory and use the existing helpers in it.
 ```
 - output used: the worker generated was acceptable. a welcome addition was that it also introduced some additional metrics like heartbeats to make it known if the worker actually active. this was an improvement, so it was accepted
-
-- Prompt:
-```
-connect otel-collector to prometheus and prometheus to grafana. the necessary images have already been configured in the docker compose config. place the appropriate config files in /observability. ignore any trace exports for now and focus on metrics alone. ensure that prometheus grabs rabbitmq's exported metrics.
-```

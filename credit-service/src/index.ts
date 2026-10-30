@@ -1,3 +1,9 @@
+import { OutboxRepository } from "./prisma/outbox.ts";
+import { rabbitAvailable, outboxWorkerRunning } from "./telemetry/queue.ts";
+import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
+import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
+import { startHeartbeat } from "./telemetry/heartbeat.ts";
+import log from "./log.ts";
 import { Application, Router } from "@oak/oak";
 import { connectDatabase, db } from "./prisma/db.ts";
 import { createPublicCreditRouter } from "./routes/credits.ts";
@@ -10,25 +16,34 @@ import type { RabbitMqProvider } from "./queue/provider.ts";
 // Ensure the database is ready before accepting requests.
 await connectDatabase();
 
+const stopHeartbeat = startHeartbeat();
+globalThis.addEventListener("unload", stopHeartbeat);
+rabbitAvailable.record(0);
+outboxWorkerRunning.record(0);
+const outboxMonitor = new OutboxMetricsMonitor(() => new OutboxRepository(db).getMetricsSnapshot());
+outboxMonitor.start();
+globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
+
+
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const startQueueTasks = async () => {
     const ERROR_BACKOFF_MS = 5000;
 
-    console.debug("initiating queue connection");
+    log.debug("initiating queue connection");
     let rabbitMqProvider: RabbitMqProvider | null = null;
     while (!rabbitMqProvider) {
         try {
             rabbitMqProvider = await buildDefaultProvider();
         } catch (e) {
-            console.warn(`first connection to queue failed: ${e}`);
+            log.warn(`first connection to queue failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
         }
     }
     while (rabbitMqProvider.getState() !== "closed") {
         try {
-            console.debug("waiting for queue to go up");
+            log.debug("waiting for queue to go up");
             await rabbitMqProvider.waitUntilUp();
-            console.info("queue connection established");
+            log.info("queue connection established");
         } catch {
             break;
         }
@@ -38,10 +53,10 @@ const startQueueTasks = async () => {
             outboxWorker.start();
 
             await rabbitMqProvider.waitUntilDown();
-            console.warn("queue is down, stopping all queue workers");
+            log.warn("queue is down, stopping all queue workers");
         } catch (e) {
             // Between queue connection and starting the workers, the network may go down.
-            console.error(`queue task cycle failed: ${e}`);
+            log.error(`queue task cycle failed: ${e}`);
             await sleep(ERROR_BACKOFF_MS);
         } finally {
             await outboxWorker.stop();
@@ -71,6 +86,7 @@ const createPrivateRouter = () => {
 
 const main = async (port: number) => {
     const app = new Application();
+    app.use(httpTelemetryMiddleware);
 
     const privateRouter = createPrivateRouter();
     const publicRouter = createPublicRouter();
@@ -79,11 +95,11 @@ const main = async (port: number) => {
     app.use(privateRouter.routes());
     app.use(privateRouter.allowedMethods());
 
-    await app.listen({ port });
+    await Deno.serve({ port }, createHttpHandler(app)).finished;
 };
 
 const port = Number(process.env.PORT ?? 3000);
-console.info(`starting on port ${port}`);
+log.info(`starting on port ${port}`);
 
 startQueueTasks();
 await main(port);

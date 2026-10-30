@@ -1,3 +1,4 @@
+import { recordError } from "../telemetry/tracing.ts";
 import type { Context, RouterContext } from "@oak/oak";
 import config from "../config.ts";
 import log from "../log.ts";
@@ -23,6 +24,7 @@ const respond = (ctx: Context, status: number, body: Context["response"]["body"]
 };
 
 const internalError = (ctx: Context, action: string, e: unknown) => {
+    recordError(e);
     log.error(`failed to ${action}: ${e} (origin: ${(<Error>e)?.stack})`);
     respond(ctx, 500, { error: `Failed to ${action}` });
 };

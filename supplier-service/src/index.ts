@@ -37,12 +37,17 @@
 
 // app.listen({ port });
 
+import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
+import { startHeartbeat } from "./telemetry/heartbeat.ts";
+
 import { Application, Router } from "@oak/oak";
 import supplierRouter from "./routes/supplier.ts";
 import locationRouter from "./routes/location.ts";
 import { connectDatabase } from "./prisma/db.ts";
 
 await connectDatabase();
+const stopHeartbeat = startHeartbeat();
+globalThis.addEventListener("unload", stopHeartbeat);
 
 const publicRouter = new Router({ prefix: "/public" });
 
@@ -57,6 +62,7 @@ const privateRouter = new Router({ prefix: "/private" });
 // Add private endpoints here later.
 
 const app = new Application();
+app.use(httpTelemetryMiddleware);
 
 app.use(publicRouter.routes());
 app.use(publicRouter.allowedMethods());
@@ -64,7 +70,5 @@ app.use(publicRouter.allowedMethods());
 app.use(privateRouter.routes());
 app.use(privateRouter.allowedMethods());
 
-await app.listen({
-    port: Number(Deno.env.get("PORT") ?? 3000),
-});
+await Deno.serve({ port: Number(Deno.env.get("PORT") ?? 3000) }, createHttpHandler(app)).finished;
 

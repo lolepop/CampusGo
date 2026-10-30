@@ -1,3 +1,7 @@
+import { getOutboxSnapshot } from "./prisma/outbox.ts";
+import { OutboxMetricsMonitor } from "./telemetry/outbox.ts";
+import { createHttpHandler, httpTelemetryMiddleware } from "./middleware/telemetry.ts";
+import { startHeartbeat } from "./telemetry/heartbeat.ts";
 import { Application, Router } from "@oak/oak";
 import orderRouter from "./routes/order.ts";
 import { connectDatabase } from "./prisma/db.ts";
@@ -12,6 +16,13 @@ const port = Number(Deno.env.get("PORT") ?? 3000);
 // ensure database is ready so that first request is not slow
 await connectDatabase();
 
+const stopHeartbeat = startHeartbeat();
+globalThis.addEventListener("unload", stopHeartbeat);
+const outboxMonitor = new OutboxMetricsMonitor(getOutboxSnapshot);
+outboxMonitor.start();
+globalThis.addEventListener("unload", () => { void outboxMonitor.stop(); });
+
+
 const publicRouter = new Router({ prefix: "/public" });
 
 publicRouter.get("/health", ctx => {
@@ -24,6 +35,7 @@ const privateRouter = new Router({ prefix: "/private" });
 // Add private endpoints (service-to-service) here later.
 
 const app = new Application();
+app.use(httpTelemetryMiddleware);
 
 app.use(publicRouter.routes());
 app.use(publicRouter.allowedMethods());
@@ -42,4 +54,4 @@ setInterval(() => {
 }, config.order.expiry.checkIntervalMs);
 
 log.info(`starting on port ${port}`);
-await app.listen({ port });
+await Deno.serve({ port }, createHttpHandler(app)).finished;

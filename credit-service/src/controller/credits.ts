@@ -1,3 +1,7 @@
+import { isExpectedDbError, recordError } from "../telemetry/tracing.ts";
+import { withTracedTransaction } from "../prisma/transaction.ts";
+import { withDatabaseOperation } from "../telemetry/database.ts";
+import log from "../log.ts";
 import type { RouterContext } from "@oak/oak";
 import type { Context } from "@oak/oak";
 import { db } from "../prisma/db.ts";
@@ -28,9 +32,9 @@ export const getBalance = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
         await resolveCreditAccount(userId);
-        const balance = await db.orm.public.UserCredits
+        const balance = await withDatabaseOperation("database.UserCredits.first", async () => db.orm.public.UserCredits
             .where({ userId: userId })
-            .first();
+            .first());
             ctx.response.status = 200;
             ctx.response.body = balance;
 
@@ -40,7 +44,8 @@ export const getBalance = async (ctx: Context, userId: number) => {
             return;
         }
     } catch (error) {
-        console.error("Failed to fetch credits:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to fetch credits:", error);
         ctx.response.status = 500;
         ctx.response.body = { 
             error: "Internal server error" 
@@ -56,13 +61,14 @@ export const listTransactions = async (ctx: Context, userId: number) => {
             ctx.response.body = { error: "User not found" };
             return;
         }
-        const balance = await db.orm.public.CreditsOnHold
+        const balance = await withDatabaseOperation("database.CreditsOnHold.all", async () => db.orm.public.CreditsOnHold
             .where({ requestorId: userId })
-            .all();
+            .all());
             ctx.response.status = 200;
             ctx.response.body = balance;
     } catch (error) {
-        console.error("Failed to fetch credits:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to fetch credits:", error);
         ctx.response.status = 500;
         ctx.response.body = { 
             error: "Internal server error" 
@@ -73,7 +79,7 @@ export const listTransactions = async (ctx: Context, userId: number) => {
 export const registerUser = async (ctx: Context, userId: number) => {
     if (!validateId(ctx, userId)) return;
     try {
-        if (await db.orm.public.UserCredits.where({ userId }).first()) {
+        if (await withDatabaseOperation("database.UserCredits.first", async () => db.orm.public.UserCredits.where({ userId }).first())) {
             ctx.response.status = 409;
             ctx.response.body = { error: "User credit account already exists" };
             return;
@@ -83,16 +89,17 @@ export const registerUser = async (ctx: Context, userId: number) => {
             ctx.response.body = { error: "User not found" };
             return;
         }
-        const userCredits = await db.orm.public.UserCredits.where({ userId }).first();
+        const userCredits = await withDatabaseOperation("database.UserCredits.first", async () => db.orm.public.UserCredits.where({ userId }).first());
         ctx.response.status = 201;
         ctx.response.body = userCredits;
     } catch (error) {
+        if (!isExpectedDbError(error)) recordError(error);
         if ((error as { sqlState?: string })?.sqlState === "23505") {
             ctx.response.status = 409;
             ctx.response.body = { error: "User credit account already exists" };
             return;
         }
-        console.error("Failed to register credit account:", error);
+        log.error("Failed to register credit account:", error);
         ctx.response.status = 500;
         ctx.response.body = { error: "Internal server error" };
     }
@@ -103,11 +110,11 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
 
     try {
         await resolveHoldCreditAccount(errandId, "courierId");
-        const result = await db.transaction(async tx => {
-            const hold = await tx.orm.public.CreditsOnHold
+        const result = await withTracedTransaction(db, async tx => {
+            const hold = await withDatabaseOperation("database.CreditsOnHold.first", async () => tx.orm.public.CreditsOnHold
                 .where({ errandId })
                 .forUpdate()
-                .first();
+                .first());
 
             if (!hold) {
                 ctx.throw(404, "Credit hold not found");
@@ -120,22 +127,22 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
                 ctx.throw(409, "No courier has been assigned to this errand");
             }
 
-            const credits = await tx.orm.public.UserCredits
+            const credits = await withDatabaseOperation("database.UserCredits.first", async () => tx.orm.public.UserCredits
                 .where({ userId: hold.courierId })
                 .forUpdate()
-                .first();
+                .first());
 
             if (!credits) {
                 ctx.throw(404, "Supplier credit balance not found");
             }
 
-            const userCredits = await tx.orm.public.UserCredits
+            const userCredits = await withDatabaseOperation("database.UserCredits.update", async () => tx.orm.public.UserCredits
                 .where({ userId: hold.courierId })
-                .update({ balance: credits.balance + hold.amount });
+                .update({ balance: credits.balance + hold.amount }));
 
-            const releasedHold = await tx.orm.public.CreditsOnHold
+            const releasedHold = await withDatabaseOperation("database.CreditsOnHold.update", async () => tx.orm.public.CreditsOnHold
                 .where({ errandId })
-                .update({ status: "RELEASED" });
+                .update({ status: "RELEASED" }));
 
             return { hold: releasedHold, userCredits };
         });
@@ -143,12 +150,13 @@ export const releaseCredits = async (ctx: Context, errandId: string) => {
         ctx.response.status = 200;
         ctx.response.body = result;
     } catch (error) {
+        if (!isExpectedDbError(error)) recordError(error);
         // Preserve HTTP errors such as 404 and 409.
         if (error instanceof Error && "status" in error) {
             throw error;
         }
 
-        console.error("Failed to release credits:", error);
+        log.error("Failed to release credits:", error);
         ctx.response.status = 500;
         ctx.response.body = { error: "Internal server error" };
     }
@@ -159,11 +167,11 @@ export const refundCredits = async (ctx: Context, errandId: string) => {
 
     try {
         await resolveHoldCreditAccount(errandId, "requestorId");
-        const result = await db.transaction(async tx => {
-            const hold = await tx.orm.public.CreditsOnHold
+        const result = await withTracedTransaction(db, async tx => {
+            const hold = await withDatabaseOperation("database.CreditsOnHold.first", async () => tx.orm.public.CreditsOnHold
                 .where({ errandId })
                 .forUpdate()
-                .first();
+                .first());
 
             if (!hold) {
                 ctx.throw(404, "Credit hold not found");
@@ -172,22 +180,22 @@ export const refundCredits = async (ctx: Context, errandId: string) => {
                 ctx.throw(409, "Credit hold has already been settled");
             }
 
-            const credits = await tx.orm.public.UserCredits
+            const credits = await withDatabaseOperation("database.UserCredits.first", async () => tx.orm.public.UserCredits
                 .where({ userId: hold.requestorId })
                 .forUpdate()
-                .first();
+                .first());
 
             if (!credits) {
                 ctx.throw(404, "Requester credit balance not found");
             }
 
-            const userCredits = await tx.orm.public.UserCredits
+            const userCredits = await withDatabaseOperation("database.UserCredits.update", async () => tx.orm.public.UserCredits
                 .where({ userId: hold.requestorId })
-                .update({ balance: credits.balance + hold.amount });
+                .update({ balance: credits.balance + hold.amount }));
 
-            const refundedHold = await tx.orm.public.CreditsOnHold
+            const refundedHold = await withDatabaseOperation("database.CreditsOnHold.update", async () => tx.orm.public.CreditsOnHold
                 .where({ errandId })
-                .update({ status: "REFUNDED" });
+                .update({ status: "REFUNDED" }));
 
             return { hold: refundedHold, userCredits };
         });
@@ -195,12 +203,13 @@ export const refundCredits = async (ctx: Context, errandId: string) => {
         ctx.response.status = 200;
         ctx.response.body = result;
     } catch (error) {
+        if (!isExpectedDbError(error)) recordError(error);
         // Preserve HTTP errors such as 404 and 409.
         if (error instanceof Error && "status" in error) {
             throw error;
         }
 
-        console.error("Failed to refund credits:", error);
+        log.error("Failed to refund credits:", error);
         ctx.response.status = 500;
         ctx.response.body = { error: "Internal server error" };
     }
@@ -235,19 +244,19 @@ export const createTransaction = async (ctx: Context) => {
     try {
         await resolveCreditAccount(requesterId);
         await resolveCreditAccount(supplierId);
-        const result = await db.transaction(async tx => {
-            const credits = await tx.orm.public.UserCredits
+        const result = await withTracedTransaction(db, async tx => {
+            const credits = await withDatabaseOperation("database.UserCredits.first", async () => tx.orm.public.UserCredits
                 .where({ userId: requesterId })
                 .forUpdate()
-                .first();
+                .first());
 
             if (!credits) {
                 ctx.throw(404, "Requester credit balance not found");
             }
 
-            const existingHold = await tx.orm.public.CreditsOnHold
+            const existingHold = await withDatabaseOperation("database.CreditsOnHold.first", async () => tx.orm.public.CreditsOnHold
                 .where({ errandId })
-                .first();
+                .first());
             if (existingHold) {
                 ctx.throw(409, "A credit hold already exists for this errand");
             }
@@ -256,25 +265,25 @@ export const createTransaction = async (ctx: Context) => {
             }
 
             if (supplierId !== null) {
-                const supplierCredits = await tx.orm.public.UserCredits
+                const supplierCredits = await withDatabaseOperation("database.UserCredits.first", async () => tx.orm.public.UserCredits
                     .where({ userId: supplierId })
-                    .first();
+                    .first());
                 if (!supplierCredits) {
                     ctx.throw(404, "Supplier credit balance not found");
                 }
             }
 
-            const hold = await tx.orm.public.CreditsOnHold.create({
+            const hold = await withDatabaseOperation("database.CreditsOnHold.create", async () => tx.orm.public.CreditsOnHold.create({
                 errandId,
                 requestorId: requesterId,
                 courierId: supplierId,
                 amount,
                 status: "HELD",
-            });
+            }));
 
-            const userCredits = await tx.orm.public.UserCredits
+            const userCredits = await withDatabaseOperation("database.UserCredits.update", async () => tx.orm.public.UserCredits
                 .where({ userId: requesterId })
-                .update({ balance: credits.balance - amount });
+                .update({ balance: credits.balance - amount }));
 
             return { hold, userCredits };
         });
@@ -282,11 +291,12 @@ export const createTransaction = async (ctx: Context) => {
         ctx.response.status = 201;
         ctx.response.body = result;
     } catch (error) {
+        if (!isExpectedDbError(error)) recordError(error);
         if (error instanceof Error && "status" in error) {
             throw error;
         }
 
-        console.error("Failed to create credit hold:", error);
+        log.error("Failed to create credit hold:", error);
         ctx.response.status = 500;
         ctx.response.body = { error: "Internal server error" };
     }

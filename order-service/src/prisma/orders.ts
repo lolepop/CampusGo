@@ -1,3 +1,5 @@
+import { withTracedTransaction } from "./transaction.ts";
+import { withDatabaseOperation } from "../telemetry/database.ts";
 import { param } from "@prisma/orm-postgres/relational-core/expression";
 import { db } from "../prisma/db.ts";
 import { enqueueEvents } from "./outbox.ts";
@@ -96,12 +98,12 @@ export interface OrderPage {
 }
 
 export const findOrderById = async (id: string): Promise<Order | null> => {
-    const row = await db.orm.public.Order.where({ id }).first();
+    const row = await withDatabaseOperation("database.Order.first", async () => db.orm.public.Order.where({ id }).first());
     return row ? toOrder(row) : null;
 };
 
 export const findOrderByIdempotencyKey = async (idempotencyKey: string): Promise<Order | null> => {
-    const row = await db.orm.public.Order.where({ idempotencyKey }).first();
+    const row = await withDatabaseOperation("database.Order.first", async () => db.orm.public.Order.where({ idempotencyKey }).first());
     return row ? toOrder(row) : null;
 };
 
@@ -111,8 +113,8 @@ export const createOrder = async (order: NewOrder): Promise<Order> => {
     // The order and its "order.created" event are written in ONE transaction (transactional
     // outbox): either both exist or neither does, so an order can never be saved without the
     // credit service eventually being asked to hold its bounty.
-    const row = await db.transaction(async tx => {
-        const created = await tx.orm.public.Order.create({
+    const row = await withTracedTransaction(db, async tx => {
+        const created = await withDatabaseOperation("database.Order.create", async () => tx.orm.public.Order.create({
             ...rest,
             id: crypto.randomUUID(),
             status: INITIAL_STATUS,
@@ -125,7 +127,7 @@ export const createOrder = async (order: NewOrder): Promise<Order> => {
             dropoffLocationId: dropoff.locationId,
             dropoffFloor: dropoff.floor,
             dropoffRoom: dropoff.room,
-        });
+        }));
         await enqueueEvents(tx, [orderCreatedEvent(created)]);
         return created;
     });
@@ -209,8 +211,8 @@ export const transitionOrder = async (
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
 
-    return await db.transaction(async tx => {
-        const [row] = await tx.query(plan);
+    return await withTracedTransaction(db, async tx => {
+        const [row] = await withDatabaseOperation("database.order.transition", async () => tx.query(plan));
         if (!row)
             return null;
         const order = toOrder(<OrderRow>row);
@@ -232,8 +234,8 @@ export const expireDueOrders = async (): Promise<Order[]> => {
         WHERE status IN ('OPEN', 'ACCEPTED', 'COLLECTED') AND "expiresAt" <= now()
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
-    return await db.transaction(async tx => {
-        const orders = (await tx.query(plan)).map(r => toOrder(<OrderRow>r));
+    return await withTracedTransaction(db, async tx => {
+        const orders = (await withDatabaseOperation("database.order.expire", async () => tx.query(plan))).map(r => toOrder(<OrderRow>r));
         await enqueueEvents(tx, orders.map(orderRefundedEvent));
         return orders;
     });
@@ -250,8 +252,8 @@ export const rejectStalePendingOrders = async (minutes: number): Promise<Order[]
         WHERE status = 'PENDING' AND "createdAt" < now() - make_interval(mins => ${int(minutes)})
         RETURNING ${orderColumns()}
     `.returnsRow(rowSpec).build();
-    return await db.transaction(async tx => {
-        const orders = (await tx.query(plan)).map(r => toOrder(<OrderRow>r));
+    return await withTracedTransaction(db, async tx => {
+        const orders = (await withDatabaseOperation("database.order.rejectStalePending", async () => tx.query(plan))).map(r => toOrder(<OrderRow>r));
         await enqueueEvents(tx, orders.map(orderRefundedEvent));
         return orders;
     });
@@ -286,6 +288,9 @@ export const listOrders = async (filter: OrderFilter): Promise<OrderPage> => {
     `.returnsRow(rowSpec).build();
 
     const runtime = db.runtime();
-    const [[{ total }], rows] = await Promise.all([runtime.query(countPlan), runtime.query(listPlan)]);
+    const [[{ total }], rows] = await Promise.all([
+        withDatabaseOperation("database.order.count", async () => await runtime.query(countPlan)),
+        withDatabaseOperation("database.order.list", async () => await runtime.query(listPlan))
+    ]);
     return { data: rows.map(r => toOrder(<OrderRow>r)), total };
 };

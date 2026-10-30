@@ -1,3 +1,4 @@
+import log from "../log.ts";
 // Converts orders saved before the status rename (CREATED -> OPEN, PICKED_UP -> COLLECTED,
 // COMPLETED -> DELIVERED). Runs before `db update` in db:update_dev, because the old status
 // check constraint rejects the new names and the new one rejects the old names: this drops
@@ -38,6 +39,6 @@ const plan = db.raw.sql`
 
 if (import.meta.main) {
     await db.runtime().query(plan);
-    console.log("Order statuses use the current names.");
+    log.info("Order statuses use the current names.");
     await db.close?.();
 }

@@ -1,3 +1,6 @@
+import { isExpectedDbError, recordError } from "../telemetry/tracing.ts";
+import log from "../log.ts";
+import { withDatabaseOperation } from "../telemetry/database.ts";
 // import type { Context, RouterContext } from "@oak/oak";
 // import { z } from "zod";
 // import type { ISupplierRepository } from "../prisma/suppliers.ts";
@@ -228,12 +231,12 @@ export const fetchAllSuppliers = async (ctx: Context) => {
         }
 
         // count total suppliers
-        const { total } = await supplierQuery.aggregate(agg => ({
+        const { total } = await withDatabaseOperation("database.Supplier.aggregate", async () => supplierQuery.aggregate(agg => ({
             total: agg.count(),
-        }));
+        })));
 
         // determine if sort by name or id, asc or desc, then sort accordingly, applying offset and limit
-        const suppliers = await supplierQuery
+        const suppliers = await withDatabaseOperation("database.Supplier.all", async () => supplierQuery
             .orderBy(supplier => {
             let field;
             if (query.sortBy === "name" ) {
@@ -244,7 +247,7 @@ export const fetchAllSuppliers = async (ctx: Context) => {
             return query.sortOrder === "asc" ? field.asc() : field.desc()})
             .offset(offset)
             .limit(limit)
-            .all();
+            .all());
 
         ctx.response.status = 200;
         ctx.response.body = {
@@ -256,7 +259,8 @@ export const fetchAllSuppliers = async (ctx: Context) => {
                 totalPage: Math.ceil(total / limit)
             },
         };
-    } catch {
+    } catch (error) {
+        if (!isExpectedDbError(error)) recordError(error);
         ctx.response.status = 500;
     }
 }
@@ -273,9 +277,9 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
     }
 
     try {
-        const supplier = await db.orm.public.Supplier
+        const supplier = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier
             .where({ id: id })
-            .first();
+            .first());
 
         // check if supplier record doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
@@ -289,7 +293,8 @@ export const fetchSupplier = async (ctx: Context, id: number) => {
         ctx.response.status = 200;
         ctx.response.body = supplier;
     } catch (error) {
-        console.error("Failed to fetch supplier:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to fetch supplier:", error);
         ctx.response.status = 500;
         ctx.response.body = { 
             error: "Internal server error" 
@@ -308,14 +313,14 @@ const rejectField = (ctx: Context, status: 400 | 409, field: string, message: st
 
 // deleted locations can no longer be given to suppliers
 const locationExists = async (locationId: number) =>
-    Boolean(await db.orm.public.Location.where({ id: locationId, deletedAt: null }).first());
+    Boolean(await withDatabaseOperation("database.Location.first", async () => db.orm.public.Location.where({ id: locationId, deletedAt: null }).first()));
 
 /**
  * Names are unique across all suppliers, including soft-deleted ones.
  * Returns why the name can't be used, or null if it is free
  */
 const nameConflict = async (name: string, exceptId?: number): Promise<string | null> => {
-    const existing = await db.orm.public.Supplier.where({ name: name }).first();
+    const existing = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier.where({ name: name }).first());
     if (!existing || existing.id === exceptId)
         return null;
     return existing.deletedAt === null
@@ -340,7 +345,7 @@ export const createSupplier = async (ctx: Context) => {
             return;
         }
 
-        const created = await db.orm.public.Supplier.create({
+        const created = await withDatabaseOperation("database.Supplier.create", async () => db.orm.public.Supplier.create({
             name: body.name,
             type: body.type,
             locationId: body.locationId,
@@ -351,11 +356,12 @@ export const createSupplier = async (ctx: Context) => {
             closesAt: body.closesAt ?? null,
             createdBy: actorUserId,
             updatedBy: actorUserId,
-        })
+        }))
         ctx.response.status = 201;
         ctx.response.body = created;
     } catch (error) {
-        console.error("Failed to create supplier:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to create supplier:", error);
         ctx.response.status = 500;
         ctx.response.body = {
             error: "Internal server error"
@@ -378,9 +384,9 @@ export const updateSupplier = async (ctx: Context, id: number) => {
     const actorUserId = (<AuthenticatedUser>ctx.state.user).id;
 
     try {
-        const supplier = await db.orm.public.Supplier
+        const supplier = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier
             .where({ id: id })
-            .first();
+            .first());
 
         // check if supplier doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
@@ -410,7 +416,7 @@ export const updateSupplier = async (ctx: Context, id: number) => {
             }
         }
 
-        await db.orm.public.Supplier
+        await withDatabaseOperation("database.Supplier.update", async () => db.orm.public.Supplier
             .where({ id: id })
             .update({
                 ...patch,
@@ -418,14 +424,15 @@ export const updateSupplier = async (ctx: Context, id: number) => {
                 ...(patch.description !== undefined ? { description: patch.description || null } : {}),
                 updatedAt: new Date().toISOString(),
                 updatedBy: actorUserId,
-            });
+            }));
 
         ctx.response.status = 200;
-        ctx.response.body = await db.orm.public.Supplier
+        ctx.response.body = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier
             .where({ id: id })
-            .first();
+            .first());
     } catch (error) {
-        console.error("Failed to update supplier:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to update supplier:", error);
         ctx.response.status = 500;
         ctx.response.body = {
             error: "Internal server error"
@@ -444,9 +451,9 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
     }
 
     try {
-        const supplier = await db.orm.public.Supplier
+        const supplier = await withDatabaseOperation("database.Supplier.first", async () => db.orm.public.Supplier
             .where({ id: id })
-            .first()
+            .first())
 
         // check if supplier doesn't exist/has been soft-deleted
         if (!supplier || supplier.deletedAt !== null) {
@@ -459,17 +466,18 @@ export const deleteSupplier = async (ctx: Context, id: number) => {
         const now = new Date().toISOString();
 
         const actorUserId = (<AuthenticatedUser>ctx.state.user).id;
-        await db.orm.public.Supplier
+        await withDatabaseOperation("database.Supplier.update", async () => db.orm.public.Supplier
             .where({ id: id })
             .update({
                 deletedAt: now,
                 updatedAt: now,
                 updatedBy: actorUserId
-            });
+            }));
 
             ctx.response.status = 204;
     } catch (error) {
-        console.error("Failed to delete supplier:", error);
+        if (!isExpectedDbError(error)) recordError(error);
+        log.error("Failed to delete supplier:", error);
         ctx.response.status = 500;
         ctx.response.body = {
             error: "Internal server error"
